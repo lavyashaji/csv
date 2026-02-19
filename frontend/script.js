@@ -6,21 +6,15 @@ async function uploadCSV() {
     document.getElementById("results").innerText = "Please choose a CSV file first.";
     return;
   }
-
   const formData = new FormData();
   formData.append("file", file);
-
   const res = await fetch("/api/upload", { method: "POST", body: formData });
   const data = await res.json();
-
   if (data.error) {
     document.getElementById("results").innerText = data.error;
     return;
   }
-
   datasetId = data.dataset_id;
-
-  // Populate column selector
   const selector = document.getElementById("columnSelector");
   selector.innerHTML = "";
   data.schema.forEach(col => {
@@ -30,32 +24,27 @@ async function uploadCSV() {
     selector.appendChild(opt);
   });
 
-  // Auto-select first column
   if (data.schema.length > 0) {
     selector.value = data.schema[0].name;
   }
-
   loadTable();
 }
+
+
 
 async function loadTable() {
   if (!datasetId) {
     document.getElementById("dataTable").innerHTML = "<tr><td>No dataset loaded</td></tr>";
     return;
   }
-
   const res = await fetch(`/api/dataset/${datasetId}/table`);
   const rows = await res.json();
-  console.log("Rows received:", rows);
-
   const table = document.getElementById("dataTable");
   table.innerHTML = "";
-
   if (rows.length > 0) {
     const header = Object.keys(rows[0]);
     let headerRow = "<tr>" + header.map(h => `<th>${h}</th>`).join("") + "</tr>";
     table.innerHTML += headerRow;
-
     rows.forEach(r => {
       let row = "<tr>" + header.map(h => `<td>${r[h]}</td>`).join("") + "</tr>";
       table.innerHTML += row;
@@ -64,6 +53,8 @@ async function loadTable() {
     table.innerHTML = "<tr><td>No data found</td></tr>";
   }
 }
+
+
 
 async function getStats() {
   if (!datasetId) {
@@ -75,11 +66,22 @@ async function getStats() {
     document.getElementById("results").innerText = "No column selected.";
     return;
   }
-
   const res = await fetch(`/api/dataset/${datasetId}/column/${col}/stats`);
   const stats = await res.json();
-  document.getElementById("results").innerText = JSON.stringify(stats, null, 2);
+
+  
+  let output = `<h3>Stats for: ${col}</h3><ul>`;
+  output += `<li><b>Min:</b> ${stats.min ?? "Not applicable"}</li>`;
+  output += `<li><b>Max:</b> ${stats.max ?? "Not applicable"}</li>`;
+  output += `<li><b>Mean:</b> ${stats.mean ?? "Not applicable"}</li>`;
+  output += `<li><b>Median:</b> ${stats.median ?? "Not applicable"}</li>`;
+  output += `<li><b>Mode:</b> ${stats.mode ?? "Not applicable"}</li>`;
+  output += `<li><b>Missing Count:</b> ${stats.missing_count}</li>`;
+  output += `</ul>`;
+
+  document.getElementById("results").innerHTML = output;
 }
+
 
 async function getHistogram() {
   if (!datasetId) {
@@ -91,15 +93,12 @@ async function getHistogram() {
     document.getElementById("results").innerText = "No column selected.";
     return;
   }
-
   const res = await fetch(`/api/dataset/${datasetId}/column/${col}/hist`);
   const hist = await res.json();
-
   if (hist.error) {
     document.getElementById("results").innerText = hist.error;
     return;
   }
-
   const ctx = document.getElementById("histCanvas").getContext("2d");
   ctx.clearRect(0, 0, 400, 200);
   ctx.fillStyle = "blue";
