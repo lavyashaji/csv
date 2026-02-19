@@ -19,6 +19,7 @@ frontend/
 .gitignore             # Git ignore file
 Sample_input.csv       # Example dataset
 main.py                # FastAPI backend
+output.png             #output frontend 
 
 
 Features
