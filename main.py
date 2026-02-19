@@ -1,28 +1,37 @@
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 import pandas as pd
 from io import StringIO
 from collections import Counter
+import os
 
 app = FastAPI()
 
-# Allow frontend (http://localhost:5500) to talk to backend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # allow all origins for dev
+    allow_origins=["*"],  
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# In-memory storage
+app.mount("/frontend", StaticFiles(directory="frontend"), name="frontend")
+
+
+
+@app.get("/")
+def read_root():
+    return FileResponse(os.path.join("frontend", "index.html"))
 datasets = {}
+
+
 
 @app.post("/api/upload")
 async def upload_csv(file: UploadFile = File(...)):
     content = await file.read()
     try:
-        # Use utf-8-sig to handle BOM, skip bad lines
         df = pd.read_csv(
             StringIO(content.decode("utf-8-sig")),
             sep=",",
@@ -38,12 +47,16 @@ async def upload_csv(file: UploadFile = File(...)):
     schema_summary = [{"name": col, "type": str(df[col].dtype)} for col in df.columns]
     return {"dataset_id": dataset_id, "schema": schema_summary}
 
+
+
 @app.get("/api/dataset/{dataset_id}/table")
 def get_table(dataset_id: str):
     df = datasets.get(dataset_id)
     if df is None:
         return {"error": "Dataset not found"}
     return df.to_dict(orient="records")
+
+
 
 @app.get("/api/dataset/{dataset_id}/column/{col}/stats")
 def get_stats(dataset_id: str, col: str):
@@ -55,16 +68,19 @@ def get_stats(dataset_id: str, col: str):
     stats = {}
 
     if pd.api.types.is_numeric_dtype(series):
-        stats["min"] = series.min()
-        stats["max"] = series.max()
-        stats["mean"] = series.mean()
-        stats["median"] = series.median()
-        stats["mode"] = series.mode().iloc[0] if not series.mode().empty else None
+        stats["min"] = series.min().item()
+        stats["max"] = series.max().item()
+        stats["mean"] = float(series.mean())
+        stats["median"] = float(series.median())
+        stats["mode"] = series.mode().iloc[0].item() if not series.mode().empty else None
     else:
         stats["mode"] = Counter(series).most_common(1)[0][0]
 
-    stats["missing_count"] = df[col].isna().sum()
+    stats["missing_count"] = int(df[col].isna().sum())
     return stats
+
+
+
 
 @app.get("/api/dataset/{dataset_id}/column/{col}/hist")
 def get_histogram(dataset_id: str, col: str, bins: int = 30):
@@ -78,4 +94,7 @@ def get_histogram(dataset_id: str, col: str, bins: int = 30):
 
     hist, bin_edges = pd.cut(series, bins=bins, retbins=True)
     counts = hist.value_counts().tolist()
-    return {"bins": bin_edges.tolist(), "counts": counts}
+    return {
+        "bins": [float(b) for b in bin_edges.tolist()],
+        "counts": [int(c) for c in counts]
+    }
